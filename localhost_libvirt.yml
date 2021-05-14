@@ -1,0 +1,30 @@
+---      
+  - hosts: localhost
+    tasks:
+      - name: Installing package {{ items }}
+        apt:
+          name: 
+            - qemu-kvm
+            - libvirt-daemon-system
+            - libvirt-clients
+            - bridge-utils
+            - virtinst
+            - virt-manager
+          state: present
+          update_cache: yes
+        become: true
+      - name: Starting libvirt service
+        service:
+          name: libvirtd
+          state: started
+          enabled: true
+      - name: add deploy user to  kvm group
+        user:
+          name: deploy
+          groups: kvm
+          append: yes
+      - name: add deploy user to libvirt group
+        user:
+          name: deploy
+          groups: libvirt
+          append: yes
