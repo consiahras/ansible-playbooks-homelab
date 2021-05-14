@@ -1,0 +1,36 @@
+---
+  - hosts: localhost
+    vars:
+      agroup: deploy-users
+    vars_files:
+      - user_passwords.yml
+      - user_list.yml
+    tasks:
+      - name: Creating deploy group  
+        group:
+          name: "{{ agroup }}"
+          state: present
+      - name: Create users
+        user:
+          name: "{{ item }}"
+          groups: "{{ agroup }}"
+          password: "{{ password | password_hash('sha512') }}"
+          append: yes
+          state: present
+          generate_ssh_key: yes
+          ssh_key_bits: 2048
+          ssh_key_file: .ssh/id_rsa
+        loop: "{{ names }}"
+
+      - name: Providing sudo rights by editing /etc/sudoers
+        lineinfile:
+          path: /etc/sudoers
+          state: present
+          regexp: '^deploy'
+          line: 'deploy ALL=(ALL:ALL) ALL'
+      - name: providing sudo rights by editing /etc/sudoers
+        lineinfile:
+          path: /etc/sudoers
+          state: present
+          regexp: '^siachras'
+          line: 'siachras ALL=(ALL:ALL) ALL'
