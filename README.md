@@ -13,6 +13,10 @@ sudo ansible-playbook  --vault-password-file=./vault_password_users localhost_us
 1. Run playbook 
 sudo ansible-playbook  localhost_libvirt.yml
 
+If you want to allo other users to be able to user virt-manager and connect to libvirtd , you can edit manually /etc/libvirt/libvirt.conf  and put
+unix_sock_ro_perms = "0770"
+
+
 
 
 #VIRTUAL MACHINES MANAGEMENT
