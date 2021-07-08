@@ -1,0 +1,9 @@
+[dockerhosts]
+docke01.siachras.com
+docker02.siachras.com
+docker03.siachras.com
+
+[k8hosts]
+k801.siachras.com
+k802.siachras.com
+k803.siachras.com
