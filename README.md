@@ -10,7 +10,7 @@ sudo ansible-playbook  --vault-password-file=./vault_password_users localhost_us
 
 
 #INSTALL DEPENDENCIES FOR VIRT-MANAGER etc
-1. Run playbook - For libvirt to work properly most likely needs a reboot after , socket to virt-manager couldnt connect before reboot
+1. Run playbook - For QEMU to connect with virt-manager,  most likely needs a reboot after , socket to virt-manager couldnt connect before reboot
 sudo ansible-playbook  localhost_libvirt.yml
 
 If you want to allo other users to be able to user virt-manager and connect to libvirtd , you can edit manually /etc/libvirt/libvirt.conf  and put
