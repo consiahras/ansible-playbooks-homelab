@@ -1,3 +1,9 @@
+
+For production would be better to use a load balancer as endpoint
+https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/
+sudo kubeadm init --control-plane-endpoint "LOAD_BALANCER_DNS:LOAD_BALANCER_PORT" --upload-certs
+
+
 Install Kubernetes Cluster using kubeadm
 Follow this documentation to set up a Kubernetes cluster on Ubuntu 20.04 LTS.
 
