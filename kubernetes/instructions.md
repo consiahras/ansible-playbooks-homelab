@@ -110,6 +110,9 @@ Use the output from __kubeadm token create__ command in previous step from the m
 ##### Get Nodes status
 ```
 kubectl get nodes
+kubectl label node ubu01 node-role.kubernetes.io/worker=worker
+kubectl label node ubu02 node-role.kubernetes.io/worker=worker
+kubectl label node ubu03 node-role.kubernetes.io/worker=worker
 ```
 ##### Get component status
 ```
