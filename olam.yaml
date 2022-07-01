@@ -2,7 +2,7 @@
   - hosts:  localhost
     become: yes
     vars:
-      todo:
+      olam_version: "1.0-1.el8"
     vars_files:
       - olam_repositories.yml
     tasks:
@@ -10,3 +10,7 @@
         ansible.builtin.dnf:
           enablerepo: "{{ item }}"
         loop: "{{ repositories }}"
+      - name: Installing olam
+        ansible.builtin.dnf:
+          name: oraclelinux-automation-manager-release-el8-{{ olam_version }}
+          state: present
