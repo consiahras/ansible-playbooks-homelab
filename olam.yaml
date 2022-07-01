@@ -1,0 +1,12 @@
+---
+  - hosts:  localhost
+    become: yes
+    vars:
+      todo:
+    vars_files:
+      - olam_repositories.yml
+    tasks:
+      - name: Enabling repositories {{ items }}
+        ansible.builtin.dnf:
+          enablerepo: "{{ item }}"
+        loop: "{{ repositories }}"
