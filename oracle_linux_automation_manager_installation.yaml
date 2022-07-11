@@ -1,0 +1,63 @@
+---
+  - hosts:  localhost
+    become: yes
+    vars:
+      olam_version: "1.0-1.el8"
+    vars_files:
+      - olam_variables.yml
+    tasks:
+      - name: Enabling repositories {{ items }}
+        ansible.builtin.dnf:
+          enablerepo: "{{ item }}"
+        loop: "{{ repositories }}"
+      - name: Installing olam
+        ansible.builtin.dnf:
+          name: oraclelinux-automation-manager-release-el8-{{ olam_version }}
+          state: present
+      - name: Add configuration for redis
+        ansible.builtin.lineinfile:
+          dest: /etc/redis.conf
+          line: "{{ item }}"
+          state: present
+        loop:
+          - "unixsocket /var/run/redis/redis.sock"
+          - "unixsocketperm 775"
+      - name: Checking if package postgresql-server exists
+        command: rpm -q --quiet postgresql
+        register: postgresql_server_installed
+        check_mode: False
+        changed_when: False
+        args:
+          warn: false
+      - name: If postgresql-server package are installed, check if DB has files at /var/lib/pgsql/data
+        ansible.builtin.find:
+          paths: /var/lib/pgsql/data
+        register: find_result
+        when: postgresql_server_installed.rc == 0
+      - name: Skiping Initializing DB if files exists already
+        debug:
+          msg: "there are files already, skipping initializing DB"
+        when: find_result.matched > 0
+      - name: Initializing the DB
+        ansible.builtin.command:
+          cmd: postgresql-setup --initdb
+        when: find_result.matched == 0
+      - name: Start postgress
+        ansible.builtin.systemd:
+          state: started
+          enabled: yes
+          name: postgresql
+      - name: Checking if awx database pre-setup is already completed
+        become: yes
+        become_user: postgres
+        shell: psql -l | grep awx | wc -l
+        register: command_output
+        ignore_errors: true
+      - name: testing to see output of register
+        debug:
+          var: command_output
+        when: command_output.stdout == "1"
+      - name: DB Initializing
+        debug:
+          msg: "Should remove debug message and add DB initialize"
+        when: command_output.stdout != "1"
