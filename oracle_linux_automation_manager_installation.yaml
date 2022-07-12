@@ -58,6 +58,69 @@
           var: command_output
         when: command_output.stdout == "1"
       - name: DB Initializing
-        debug:
-          msg: "Should remove debug message and add DB initialize"
+        become: yes
+        become_user: postgres
+        shell: postgresql-setup --initdb
         when: command_output.stdout != "1"
+      - name: Checking if awx database pre-set completed, second time
+        become: yes
+        become_user: postgres
+        shell: psql -l | grep awx | wc -l
+        register: awx_db_status
+        ignore_errors: true
+        #Exit the playbook if for any reason there isn't awx database created after the steps above
+      - block:
+        - name: "Ending play message"
+          debug:
+            msg: "There is no awx database created , ending play, check manual steps of /var/lib/ol-automation-manager/ol-automation-manager-DB-init.sh"
+        - meta: end_play
+        when: awx_db_status.stdout != "1"
+        #CREATION OF SELFSIGNED CERTIFICATE NEEDS INTERNET : https://docs.ansible.com/ansible/latest/collections/community/crypto/docsite/guide_selfsigned.html
+        #Checks if certificate already is created
+      - name: Checking if certificate /etc/tower/tower.crt already exists
+        stat:
+          path: /etc/tower/tower.crt
+        register: certificate_exists
+      - name: Creating new certificate and key
+        shell: openssl req -x509 -nodes -days 1092 -newkey rsa:2048 -keyout /etc/tower/tower.key -out /etc/tower/tower.crt -subj "/C=US/ST=AZ/L=Phoenix/O=NetSuite/OU=NSAS"
+        when: not certificate_exists.stat.exists
+        #NGINX CONFIGURATION
+      - name: Insert/Update configuration
+        ansible.builtin.blockinfile:
+          path: /etc/nginx/nginx.conf
+          block: |
+            user nginx;
+            worker_processes auto;
+            error_log /var/log/nginx/error.log;
+            pid /run/nginx.pid;
+
+            include /usr/share/nginx/modules/*.conf;
+            events {
+              worker_connections 1024;
+            }
+            http {
+              log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                '$status $body_bytes_sent "$http_referer" '
+                '"$http_user_agent" "$http_x_forwarded_for"';
+            access_log  /var/log/nginx/access.log  main;
+
+            sendfile            on;
+            tcp_nopush          on;
+            tcp_nodelay         on;
+            keepalive_timeout   65;
+            types_hash_max_size 2048;
+
+            include             /etc/nginx/mime.types;
+            default_type        application/octet-stream;
+
+            include /etc/nginx/conf.d/*.conf;
+            }
+      - name: Editing /etc/tower/settings.py
+        ansible.builtin.lineinfile:
+          path: /etc/tower/settings.py
+          line: "CLUSTER_HOST_ID = {{ ansible_default_ipv4.address }}"
+      - name: Enabling and starting of OLAM service
+        ansible.builtin.systemd:
+          state: started
+          name: ol-automation-manager.service
+          enabled: yes
