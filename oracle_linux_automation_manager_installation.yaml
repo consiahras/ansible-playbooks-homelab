@@ -75,6 +75,21 @@
             msg: "There is no awx database created , ending play, check manual steps of /var/lib/ol-automation-manager/ol-automation-manager-DB-init.sh"
         - meta: end_play
         when: awx_db_status.stdout != "1"
+        #AWX-MANAGE commands
+      - name: Checking if awx-manage commands already completed
+        become:
+        shell: sudo su -l awx -s /bin/bash -c "awx-manage list_instances | grep capacity"
+        register: awx_completed
+        ignore_errors: true
+      - name: Printing var awx_completed
+        debug:
+          var: awx_completed
+      - name: Running the  awx deployment commands
+        become:
+        become_user: awx
+        become_flags: '-s /bin/bash'
+        shell: sudo su -l awx -s /bin/bash -c "awx-manage migrate && awx-manage createsuperuser --username admin --email noreply@netsuite.com --noinput && awx-manage create_preload_data && awx-manage provision_instance --hostname={{ ansible_default_ipv4.address }} && awx-manage register_queue --queuename=tower --hostnames={{ ansible_default_ipv4.address }} && awx-manage setup_managed_credential_type"
+        when: awx_completed.rc != 0
         #CREATION OF SELFSIGNED CERTIFICATE NEEDS INTERNET : https://docs.ansible.com/ansible/latest/collections/community/crypto/docsite/guide_selfsigned.html
         #Checks if certificate already is created
       - name: Checking if certificate /etc/tower/tower.crt already exists
@@ -88,6 +103,10 @@
       - name: Insert/Update configuration
         ansible.builtin.blockinfile:
           path: /etc/nginx/nginx.conf
+          marker: "{mark}"
+          marker_begin: BEGIN
+          marker_end: END
+          state: present
           block: |
             user nginx;
             worker_processes auto;
@@ -118,7 +137,7 @@
       - name: Editing /etc/tower/settings.py
         ansible.builtin.lineinfile:
           path: /etc/tower/settings.py
-          line: "CLUSTER_HOST_ID = {{ ansible_default_ipv4.address }}"
+          line: 'CLUSTER_HOST_ID = "{{ ansible_default_ipv4.address }}"'
       - name: Enabling and starting of OLAM service
         ansible.builtin.systemd:
           state: started
