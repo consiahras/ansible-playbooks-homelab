@@ -1,0 +1,10 @@
+repositories:
+  - "ol8_baseos_latest"
+  - "oraclelinux-automation-manager-release-el8"
+  - "ol8_automation"
+  - "ol8_addons"
+  - "ol8_UEKR6"
+  - "ol8_appstream"
+firewall_rules:
+  - "https"
+  - "http"
