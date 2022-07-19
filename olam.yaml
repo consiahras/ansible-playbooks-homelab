@@ -4,7 +4,7 @@
     vars:
       olam_version: "1.0-1.el8"
     vars_files:
-      - olam_repositories.yml
+      - olam_variables.yml
     tasks:
       - name: Enabling repositories {{ items }}
         ansible.builtin.dnf:
@@ -14,3 +14,132 @@
         ansible.builtin.dnf:
           name: oraclelinux-automation-manager-release-el8-{{ olam_version }}
           state: present
+      - name: Add configuration for redis
+        ansible.builtin.lineinfile:
+          dest: /etc/redis.conf
+          line: "{{ item }}"
+          state: present
+        loop:
+          - "unixsocket /var/run/redis/redis.sock"
+          - "unixsocketperm 775"
+      - name: Checking if package postgresql-server exists
+        command: rpm -q --quiet postgresql
+        register: postgresql_server_installed
+        check_mode: False
+        changed_when: False
+        args:
+          warn: false
+      - name: If postgresql-server package are installed, check if DB has files at /var/lib/pgsql/data
+        ansible.builtin.find:
+          paths: /var/lib/pgsql/data
+        register: find_result
+        when: postgresql_server_installed.rc == 0
+      - name: Skiping Initializing DB if files exists already
+        debug:
+          msg: "there are files already, skipping initializing DB"
+        when: find_result.matched > 0
+      - name: Initializing the DB
+        ansible.builtin.command:
+          cmd: postgresql-setup --initdb
+        when: find_result.matched == 0
+      - name: Start postgress
+        ansible.builtin.systemd:
+          state: started
+          enabled: yes
+          name: postgresql
+      - name: Checking if awx database pre-setup is already completed
+        become: yes
+        become_user: postgres
+        shell: psql -l | grep awx | wc -l
+        register: command_output
+        ignore_errors: true
+      - name: testing to see output of register
+        debug:
+          var: command_output
+        when: command_output.stdout == "1"
+      - name: DB Initializing
+        become: yes
+        become_user: postgres
+        shell: postgresql-setup --initdb
+        when: command_output.stdout != "1"
+      - name: Checking if awx database pre-set completed, second time
+        become: yes
+        become_user: postgres
+        shell: psql -l | grep awx | wc -l
+        register: awx_db_status
+        ignore_errors: true
+        #Exit the playbook if for any reason there isn't awx database created after the steps above
+      - block:
+        - name: "Ending play message"
+          debug:
+            msg: "There is no awx database created , ending play, check manual steps of /var/lib/ol-automation-manager/ol-automation-manager-DB-init.sh"
+        - meta: end_play
+        when: awx_db_status.stdout != "1"
+        #AWX-MANAGE commands
+      - name: Checking if awx-manage commands already completed
+        become:
+        shell: sudo su -l awx -s /bin/bash -c "awx-manage list_instances | grep capacity"
+        register: awx_completed
+        ignore_errors: true
+      - name: Printing var awx_completed
+        debug:
+          var: awx_completed
+      - name: Running the  awx deployment commands
+        become:
+        become_user: awx
+        become_flags: '-s /bin/bash'
+        shell: sudo su -l awx -s /bin/bash -c "awx-manage migrate && awx-manage createsuperuser --username admin --email noreply@netsuite.com --noinput && awx-manage create_preload_data && awx-manage provision_instance --hostname={{ ansible_default_ipv4.address }} && awx-manage register_queue --queuename=tower --hostnames={{ ansible_default_ipv4.address }} && awx-manage setup_managed_credential_type"
+        when: awx_completed.rc != 0
+        #CREATION OF SELFSIGNED CERTIFICATE NEEDS INTERNET : https://docs.ansible.com/ansible/latest/collections/community/crypto/docsite/guide_selfsigned.html
+        #Checks if certificate already is created
+      - name: Checking if certificate /etc/tower/tower.crt already exists
+        stat:
+          path: /etc/tower/tower.crt
+        register: certificate_exists
+      - name: Creating new certificate and key
+        shell: openssl req -x509 -nodes -days 1092 -newkey rsa:2048 -keyout /etc/tower/tower.key -out /etc/tower/tower.crt -subj "/C=US/ST=AZ/L=Phoenix/O=NetSuite/OU=NSAS"
+        when: not certificate_exists.stat.exists
+        #NGINX CONFIGURATION
+      - name: Insert/Update configuration
+        ansible.builtin.blockinfile:
+          path: /etc/nginx/nginx.conf
+          marker: "{mark}"
+          marker_begin: BEGIN
+          marker_end: END
+          state: present
+          block: |
+            user nginx;
+            worker_processes auto;
+            error_log /var/log/nginx/error.log;
+            pid /run/nginx.pid;
+
+            include /usr/share/nginx/modules/*.conf;
+            events {
+              worker_connections 1024;
+            }
+            http {
+              log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                '$status $body_bytes_sent "$http_referer" '
+                '"$http_user_agent" "$http_x_forwarded_for"';
+            access_log  /var/log/nginx/access.log  main;
+
+            sendfile            on;
+            tcp_nopush          on;
+            tcp_nodelay         on;
+            keepalive_timeout   65;
+            types_hash_max_size 2048;
+
+            include             /etc/nginx/mime.types;
+            default_type        application/octet-stream;
+
+            include /etc/nginx/conf.d/*.conf;
+            }
+      - name: Editing /etc/tower/settings.py
+        ansible.builtin.lineinfile:
+          path: /etc/tower/settings.py
+          line: 'CLUSTER_HOST_ID = "{{ ansible_default_ipv4.address }}"'
+      - name: Enabling and starting of OLAM service
+        ansible.builtin.systemd:
+          state: started
+          name: ol-automation-manager.service
+          enabled: yes
