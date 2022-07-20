@@ -3,10 +3,18 @@
     become: yes
     vars:
       olam_version: "1.0-1.el8"
-    vars_files:
-      - olam_variables.yml
+      repositories:
+        - "ol8_baseos_latest"
+        - "oraclelinux-automation-manager-release-el8"
+        - "ol8_automation"
+        - "ol8_addons"
+        - "ol8_UEKR6"
+        - "ol8_appstream"
+      firewall_rules:
+        - "https"
+        - "http"
     tasks:
-      - name: Enabling repositories {{ items }}
+      - name: Enabling repositories {{ repositories }}
         ansible.builtin.dnf:
           enablerepo: "{{ item }}"
         loop: "{{ repositories }}"
@@ -22,6 +30,20 @@
         loop:
           - "unixsocket /var/run/redis/redis.sock"
           - "unixsocketperm 775"
+      - name: Checking if {{ firewall_rules }} are already opened
+        shell: firewall-cmd --list-services | egrep "http|https"
+        register: firewallstatus
+        ignore_errors: true
+      - name: Testing to see output of firewallstatus
+        debug:
+          var: firewallstatus
+      - name: Opening {{ firewall_rules }}  Firewall_rules
+        command: firewall-cmd --add-service={{ item }} --permanent
+        loop: "{{ firewall_rules }}"
+        when: firewallstatus.rc == "0"
+      - name: Reload firewall
+        command: firewall-cmd --reload
+        when: firewallstatus.rc == "0"
       - name: Checking if package postgresql-server exists
         command: rpm -q --quiet postgresql
         register: postgresql_server_installed
