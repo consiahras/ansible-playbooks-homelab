@@ -2,7 +2,8 @@
   - hosts:  localhost
     become: yes
     vars:
-      olam_version: "1.0-1.el8"
+      #olam_version: "1.0-1.el8"
+      olam_version: "1.0.2-1"
       repositories:
         - "ol8_baseos_latest"
         - "oraclelinux-automation-manager-release-el8"
@@ -20,7 +21,8 @@
         loop: "{{ repositories }}"
       - name: Installing olam
         ansible.builtin.dnf:
-          name: oraclelinux-automation-manager-release-el8-{{ olam_version }}
+          name: ol-automation-manager-{{ olam_version }}
+          #name: oraclelinux-automation-manager-release-el8-{{ olam_version }}
           state: present
       - name: Installing oracle-cloud-agent
         ansible.builtin.dnf:
