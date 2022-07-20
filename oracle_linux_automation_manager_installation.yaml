@@ -22,6 +22,10 @@
         ansible.builtin.dnf:
           name: oraclelinux-automation-manager-release-el8-{{ olam_version }}
           state: present
+      - name: Installing oracle-cloud-agent
+        ansible.builtin.dnf:
+          name: oracle-cloud-agent
+          state: present
       - name: Add configuration for redis
         ansible.builtin.lineinfile:
           dest: /etc/redis.conf
